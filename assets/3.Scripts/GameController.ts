@@ -1,8 +1,9 @@
 import { _decorator, Component, game, instantiate, Label, Layout, math, Node, Prefab, Size, UITransform } from 'cc';
 import { CardModel } from './Model/Card';
 import { Item } from './Item';
-import { CARD_STATUS, GAME_ITEMS, GAME_SIZE, STORAGE_KEY_DATA } from './GameConst';
+import { CARD_STATUS, GAME_ITEMS, GAME_SIZE, STORAGE_KEY_OPENED as STORAGE_KEY_OPENED, STORAGE_KEY_DATA, STORAGE_KEY_SCORE } from './GameConst';
 import { CLocalStorage } from './CLocalStorage';
+import { SoundManager } from './SoundManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('GameController')
@@ -14,7 +15,7 @@ export class GameController extends Component {
     item: Prefab = null;
 
     @property(Label)
-    clicked: Label = null;
+    opened: Label = null;
 
     @property(Label)
     score:Label = null;
@@ -26,9 +27,12 @@ export class GameController extends Component {
     gameNode: Node = null;
 
     @property(Node)
+    gameOver: Node = null;
+
+    @property(Node)
     btnContinue: Node = null;
 
-    clickCount: number = 0;
+    openedCount: number = 0;
     scoreCount: number = 0;
 
     listCard: CardModel[] = [];
@@ -43,21 +47,108 @@ export class GameController extends Component {
         this.menuNode.active = true;
         this.gameNode.active = false;
         this.layoutSize = this.gameLayout.node.getComponent(UITransform).width;
+
+        // Check saved data
         this.loadedData = CLocalStorage.gI().getItem(STORAGE_KEY_DATA);
-        this.initNewGame(6);
+        if(this.loadedData != null && this.loadedData != undefined){
+            this.btnContinue.active = true;
+        }else{
+            this.btnContinue.active = false;
+        }
     }
 
+   //#region Event handle 
+
+    onClickItem(event){
+        let itemComp = event.target.getComponent(Item);
+        if(itemComp){
+            if(itemComp == this.currentCard) return;
+            if(itemComp.card.state == CARD_STATUS.FACE_DOWN){
+                itemComp.Open();
+                if(this.currentCard == null){
+                    this.currentCard = itemComp;
+                }else{
+                    if(this.currentCard.card.id == itemComp.card.id){
+                        itemComp.Win();
+                        this.currentCard.Win();
+                        this.scoreCount++;
+                        this.score.string = "Score: " + this.scoreCount*100;
+                        
+                        //check win
+                        if( this.scoreCount*2 == this.listCard.length){
+                            this.onGameOver();
+                            return;
+                        }
+                    }else{
+                        itemComp.Lose();
+                        this.currentCard.Lose();
+                    }
+                    this.currentCard = null;
+                    this.openedCount++;
+                    this.opened.string = "Opened: " + this.openedCount
+                }
+                CLocalStorage.gI().saveItem(STORAGE_KEY_DATA, this.listCard);
+                CLocalStorage.gI().saveItem(STORAGE_KEY_OPENED, this.openedCount);
+                CLocalStorage.gI().saveItem(STORAGE_KEY_SCORE, this.scoreCount);
+            }
+        }
+    }
+
+    onClickLoadgame(){
+        SoundManager.gI().playClick();
+        this.loadSavedGame();
+    }
+
+    onClickNewgame(event, data){
+        SoundManager.gI().playClick();
+        let size = parseInt(data);
+        this.menuNode.active = false;
+        this.initNewGame(size);
+        this.gameNode.active = true;
+    }
+
+    onClickPlayAgain(){
+        SoundManager.gI().playClick();
+        this.gameOver.active = false;
+        this.initNewGame(this.gameSize);
+        this.gameNode.active = true;
+    }
+
+    onClickOpenMenu(){
+        SoundManager.gI().playClick();
+        this.gameOver.active = false;
+        this.gameNode.active = false;
+        this.menuNode.active = true;
+    }
+
+    //#endregion Event handle
+
+    //#region game logic
     private loadSavedGame(){
         this.gameLayout.node.removeAllChildren();
+        this.listCard = this.loadedData;
+        this.gameSize = Math.sqrt(this.listCard.length);
+        this.currentCard = null;
+        this.openedCount = parseInt(CLocalStorage.gI().getItem(STORAGE_KEY_OPENED));
+        this.scoreCount = parseInt(CLocalStorage.gI().getItem(STORAGE_KEY_SCORE));
+        this.score.string = "Score: " + this.scoreCount*100;
+        this.opened.string = "Opened: " + this.openedCount
+        
+        this.createItems(true);
+
+        this.menuNode.active = false;
+        this.gameNode.active = true;
     }
 
     private initNewGame(gamesize){
-        this.gameLayout.node.removeAllChildren();
         this.gameSize = gamesize;
         this.listCard = [];
         this.currentCard = null;
-        this.clickCount = 0;
+        this.openedCount = 0;
         this.scoreCount = 0;
+        this.score.string = "Score: " + this.scoreCount*100;
+        this.opened.string = "Opened: " + this.openedCount
+        CLocalStorage.gI().deleteItem(STORAGE_KEY_DATA);
         let totalItem = gamesize*gamesize;
         //ex gamesize = 6 total = 36
         for(let i = 0; i < totalItem/2; i++){
@@ -73,6 +164,7 @@ export class GameController extends Component {
     }
 
     createItems(isLoaded){
+        this.gameLayout.node.removeAllChildren();
         //Setup layout size
         let itemSize = (this.layoutSize - (20*this.gameSize))/this.gameSize;
         this.gameLayout.cellSize = new Size(itemSize, itemSize);
@@ -84,52 +176,19 @@ export class GameController extends Component {
             itemComp.Init(this.listCard[i]);
             this.gameLayout.node.addChild(newItem);
             itemComp.AddToBoard(isLoaded);
+
+            //get current card when load data
+            if(isLoaded && this.listCard[i].state == CARD_STATUS.FACE_UP){
+                this.currentCard = itemComp;
+            }
             newItem.on(Node.EventType.TOUCH_END, self.onClickItem.bind(self));
         }
     }
-
-
-   //#region Event handle 
-
-    onClickItem(event){
-        let itemComp = event.target.getComponent(Item);
-        if(itemComp){
-            if(itemComp.card.state == CARD_STATUS.FACE_DOWN){
-                itemComp.Open();
-                this.clickCount++;
-                this.clicked.string = "Clicked: " + this.clickCount
-                if(this.currentCard == null){
-                    this.currentCard = itemComp;
-                }else{
-                    if(this.currentCard.card.id == itemComp.card.id){
-                        itemComp.Win();
-                        this.currentCard.Win();
-                        this.scoreCount+=100;
-                        this.score.string = "Score: " + this.scoreCount;
-                    }else{
-                        itemComp.Lose();
-                        this.currentCard.Lose();
-                    }
-                    this.currentCard = null;
-                }
-                CLocalStorage.gI().saveItem(STORAGE_KEY_DATA, this.listCard);
-            }
-        }
-    }
-
-    onClickLoadgame(){
-
-    }
-
-    onClickNewgame(event, data){
+    onGameOver(){
+        this.gameOver.active = true;
+        this.btnContinue.active = false;
         CLocalStorage.gI().deleteItem(STORAGE_KEY_DATA);
-        let size = parseInt(data);
-        this.menuNode.active = false;
-        this.initNewGame(size);
-        this.gameNode.active = true;
     }
-
-    //#endregion Event handle
 
     suffleCards(cards:Array<any>){
         const shuffledCards = [...cards];
@@ -146,6 +205,8 @@ export class GameController extends Component {
         // shuffle
         return indices.map(index => shuffledCards[index]);
     }
+
+    //#endregion game logic
 }
 
 

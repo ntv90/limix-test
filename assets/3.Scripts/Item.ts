@@ -12,8 +12,6 @@ export class Item extends Component {
     faceDownSprite: SpriteFrame = null;
     @property(Sprite)
     cardImage: Sprite = null;
-    @property(Label)
-    stt: Label = null;
 
     public card: CardModel;
 
@@ -22,7 +20,6 @@ export class Item extends Component {
         this.cardImage.spriteFrame = this.faceDownSprite;
         //this.cardImage.spriteFrame = this.listCard[this.card.id];
         this.node.scale = v3(0,0,0);
-        this.stt.string = "" +_card.state;
         
     }
 
@@ -30,8 +27,11 @@ export class Item extends Component {
         if(isLoadData){
             if(this.card.state == CARD_STATUS.FACE_UP){
                 this.cardImage.spriteFrame = this.listCard[this.card.id];
+                tween(this.node).to(0.2, {scale: v3(1,1,1)}).start();
             }else if(this.card.state == CARD_STATUS.REMOVED){
                 this.node.scale = v3(0,0,1);
+            }else{
+                tween(this.node).to(0.2, {scale: v3(1,1,1)}).start();
             }
         }else{
             tween(this.node).to(0.2, {scale: v3(1,1,1)}).start();
@@ -41,7 +41,6 @@ export class Item extends Component {
     public Open(){
         Tween.stopAllByTarget(this);
         this.card.state = CARD_STATUS.FACE_UP;
-        this.stt.string = "FACE UP";
         SoundManager.gI().playClick();
         tween(this.node).to(0.2, {scale: v3(0,1,1)})
             .call( () => {
@@ -54,10 +53,11 @@ export class Item extends Component {
     public Win(){
         Tween.stopAllByTarget(this);
         this.card.state = CARD_STATUS.REMOVED;
-        this.stt.string = "REMOVED";
-        SoundManager.gI().playCorrect();
         tween(this.node)
             .delay(0.4)
+            .call( () => {
+                SoundManager.gI().playCorrect();
+            })
             .to(0.2, {scale: v3(1.1,1.1,1)})
             .delay(0.1)
             .to(0.1, {scale: v3(0,0,1)})
@@ -66,6 +66,7 @@ export class Item extends Component {
 
     public Lose(){
         Tween.stopAllByTarget(this);
+        this.card.state = CARD_STATUS.FACE_DOWN;
         tween(this.node)
             .delay(0.4)
             .call( () => {
@@ -80,10 +81,6 @@ export class Item extends Component {
                 this.cardImage.spriteFrame = this.faceDownSprite;
             })
             .to(0.1, {scale: v3(1,1,1)})
-            .call( () => {
-                this.card.state = CARD_STATUS.FACE_DOWN;
-                this.stt.string = "FACE DOWN";
-            })
         .start();
     }
 }

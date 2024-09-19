@@ -21,6 +21,11 @@ export class SoundManager extends Component {
 
     protected onLoad(): void {
         SoundManager.instance = this;
+        
+    }
+
+    protected start(): void {
+        this.bgmSource.play();
     }
 
     static gI(): SoundManager {
@@ -35,6 +40,14 @@ export class SoundManager extends Component {
     }
     public playWrong(){
         this.effectSource.playOneShot(this.wrong);
+    }
+
+    public setMusicVolumn(value){
+        this.bgmSource.volume = value;
+    }
+
+    public setEffectVolumn(value){
+        this.effectSource.volume = value;
     }
 }
 

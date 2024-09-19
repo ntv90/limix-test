@@ -1,6 +1,8 @@
 import {
     _decorator,
+    Canvas,
     Component,
+    director,
     ResolutionPolicy,
     screen,
     view,
@@ -14,7 +16,8 @@ export class AutoCanvasSize extends Component {
     }
 
     private setupCanvas() {
-        const defaultRatio = 1280/720;
+        const defaultRatio = 1080/1920;
+        const cv = director.getScene().getComponentInChildren(Canvas);
         const size = screen.windowSize;
         if (size.width / size.height > defaultRatio) {
             view.setResolutionPolicy(ResolutionPolicy.FIXED_HEIGHT);
